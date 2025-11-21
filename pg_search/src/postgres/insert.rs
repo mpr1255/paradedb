@@ -290,8 +290,11 @@ unsafe fn insert(
                     )
                 }),
                 &mut search_document,
+                ctid,
             )
-            .unwrap_or_else(|err| panic!("{err}"));
+            .unwrap_or_else(|err| {
+                pgrx::error!("Index creation failed: {}", err);
+            });
             mode.writer
                 .insert(search_document, ctid, || {})
                 .expect("insertion into index should succeed");

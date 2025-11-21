@@ -681,9 +681,10 @@ pub fn index_memory_segment(
                         }
                     }),
                     &mut doc,
+                    ctid,
                 )
-                .unwrap_or_else(|e| {
-                    panic!("Failed to create document from row: {e}");
+                .unwrap_or_else(|err| {
+                    pgrx::error!("MVCC directory failed to create document from row: {}", err);
                 });
 
                 // Creating a Document clones all necessary heap data, so we can free the tuple
