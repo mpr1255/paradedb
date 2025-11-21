@@ -28,6 +28,13 @@ use tantivy::{
 };
 use thiserror::Error;
 
+/// Decompose a 64-bit ctid into block and offset components for error reporting
+pub fn decompose_ctid(ctid: u64) -> (u32, u16) {
+    let block = (ctid >> 16) as u32;
+    let offset = (ctid & 0xFFFF) as u16;
+    (block, offset)
+}
+
 use crate::index::mvcc::{MVCCDirectory, MvccSatisfies};
 use crate::index::setup_tokenizers;
 use crate::postgres::rel::PgSearchRelation;
@@ -439,6 +446,23 @@ pub enum IndexError {
 
     #[error("key_field column '{0}' cannot be NULL")]
     KeyIdNull(String),
+
+    #[error("Error processing row at ctid ({block}, {offset}) [row_id={ctid}]: {source}")]
+    RowProcessingError {
+        ctid: u64,
+        block: u32,
+        offset: u16,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    #[error("Field '{field}' in row at ctid ({block}, {offset}) [row_id={ctid}]: {source}")]
+    FieldProcessingError {
+        field: String,
+        ctid: u64,
+        block: u32,
+        offset: u16,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 #[cfg(any(test, feature = "pg_test"))]

@@ -17,7 +17,7 @@
 
 use crate::api::tokenizers::{type_is_alias, type_is_tokenizer, UncheckedTypmod};
 use crate::api::{FieldName, HashMap};
-use crate::index::writer::index::IndexError;
+use crate::index::writer::index::{decompose_ctid, IndexError};
 use crate::nodecast;
 use crate::postgres::build::is_bm25_index;
 use crate::postgres::customscan::pdbscan::text_lower_funcoid;
@@ -407,6 +407,7 @@ pub unsafe fn row_to_search_document<'a>(
         ),
     >,
     document: &mut tantivy::TantivyDocument,
+    ctid: u64,
 ) -> Result<(), IndexError> {
     for (
         datum,
@@ -429,16 +430,40 @@ pub unsafe fn row_to_search_document<'a>(
             continue;
         }
 
+        let field_name = search_field.field_name().to_string();
+        let (block, offset) = decompose_ctid(ctid);
+
         if *is_array {
-            for value in TantivyValue::try_from_datum_array(datum, *base_oid)? {
+            for value in TantivyValue::try_from_datum_array(datum, *base_oid)
+                .map_err(|source| IndexError::FieldProcessingError {
+                    field: field_name.clone(),
+                    ctid,
+                    block,
+                    offset,
+                    source: Box::new(source),
+                })? {
                 document.add_field_value(search_field.field(), &OwnedValue::from(value));
             }
         } else if *is_json {
-            for value in TantivyValue::try_from_datum_json(datum, *base_oid)? {
+            for value in TantivyValue::try_from_datum_json(datum, *base_oid)
+                .map_err(|source| IndexError::FieldProcessingError {
+                    field: field_name.clone(),
+                    ctid,
+                    block,
+                    offset,
+                    source: Box::new(source),
+                })? {
                 document.add_field_value(search_field.field(), &OwnedValue::from(value));
             }
         } else {
-            let tv = TantivyValue::try_from_datum(datum, *base_oid)?;
+            let tv = TantivyValue::try_from_datum(datum, *base_oid)
+                .map_err(|source| IndexError::FieldProcessingError {
+                    field: field_name,
+                    ctid,
+                    block,
+                    offset,
+                    source: Box::new(source),
+                })?;
             document.add_field_value(search_field.field(), &OwnedValue::from(tv));
         }
     }

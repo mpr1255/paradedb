@@ -503,8 +503,11 @@ unsafe extern "C-unwind" fn build_callback(
                     )
                 }),
             &mut doc,
+            ctid_u64,
         )
-        .unwrap_or_else(|e| panic!("{e}"));
+        .unwrap_or_else(|err| {
+            pgrx::error!("Parallel index build failed: {}", err);
+        });
 
         build_state
             .writer
